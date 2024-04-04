@@ -1,9 +1,11 @@
 import os
 import logging
 
+import update
 from dotenv import load_dotenv
-from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
+from telegram.ext.filters import CONTACT
 
 load_dotenv()
 
@@ -14,54 +16,62 @@ logging.basicConfig(
 )
 
 
+async def hello(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text(f'Hello {update.effective_user.first_name}')
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     keyboard = [
-        [InlineKeyboardButton("Привіт", callback_data='hello')],
-        [InlineKeyboardButton("Вітання", callback_data='greetings')],
-        [InlineKeyboardButton("Автор", callback_data='author')],
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text('Виберіть опцію:', reply_markup=reply_markup)
+        [KeyboardButton('/start'), KeyboardButton('/hello')],
+        [KeyboardButton('/author'), KeyboardButton('/Bye')],
+        [KeyboardButton('Share location', request_location=True)],
+        [KeyboardButton('Share my contact', request_contact=True)],
+         ]
+
+    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
+
+    await update.message.reply_text(
+        f'Привіт {update.effective_user.first_name}',
+        reply_markup=reply_markup)
 
 
-async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    query = update.callback_query
-    query.answer()
-    if query.data == 'hello':
-        await query.message.reply_text(f'хаю хай {update.effective_user.first_name}')
-    elif query.data == 'greetings':
-        await query.message.reply_text(f'Привіт, {update.effective_user.first_name}!')
-    elif query.data == 'author':
-        await query.message.reply_text(f'Цього бота створив Андрущишин Роман')
+async def author(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await context.bot.send_message(chat_id=update.effective_chat.id, text="Мене робив Andrushychyn Roman")
 
 
-async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    messege = update.message.text.lower()
+async def Bye(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await context.bot.send_message(chat_id=update.effective_chat.id, text="прощавай")
 
-    if 'привіт' in messege:
-        reply_text = f'привіт {update.effective_user.first_name}!'
-    elif 'гудбай' in messege:
-        last_name = update.effective_user.last_name
-        if last_name is None:
-            reply_text = f'допобачення {update.effective_user.first_name}!'
-        else:
-            reply_text = f'допобачення {update.effective_user.first_name} {last_name}!'
-    else:
-        reply_text = 'Я тебе не розумію '
 
-    keyboard = [
-        [InlineKeyboardButton("Привіт", callback_data='hello')],
-        [InlineKeyboardButton("Вітання", callback_data='greetings')],
-        [InlineKeyboardButton("Автор", callback_data='author')],
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text(reply_text, reply_markup=reply_markup)
+async def location(update: Update, context: ContextTypes.DEFEAULT_TYPE):
+    lat = update.message.location.latitude
+    lon = update.message.location.latitude
+
+    await update.message.reply_text(f'lat = {lat}, lon = {lon}')
+async def contact(update: Update,context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.contact.user_id
+    first_name = update.message.contact.first_name    
+    last_name = update.message.contact.last_name
+    await update.message.reply_text(
+        f"""        
+        user_id = {user_id}
+        first_name = {first_name}        
+        last_name = {last_name}
+        """,
+        reply_markup=ReplyKeyboardRemove()
+    )
 
 
 app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
+app.add_handler(CommandHandler("hello", hello))
 app.add_handler(CommandHandler("start", start))
-app.add_handler(CallbackQueryHandler(button))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
+app.add_handler(CommandHandler("author", author))
+app.add_handler(CommandHandler("bye", Bye))
 
+location_hendler = (MessageHandler(filters.LOCATION, location))
+app.add_handler(location_hendler)
+
+contact_handler = MessageHandler(filters.CONTACT, contact)
+app.add_handler(contact_handler)
 app.run_polling()
